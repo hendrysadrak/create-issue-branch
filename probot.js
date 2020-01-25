@@ -24,6 +24,10 @@ module.exports = app => {
       } else {
         const sha = await getSourceBranchHeadSha(ctx, config, app.log)
         await createBranch(ctx, owner, repo, branchName, sha, app.log)
+
+        if (getCreatePR === true) {
+          await createPullRequest(ctx, branchName, app.log)
+        }
       }
     }
   })
@@ -121,6 +125,29 @@ async function createBranch (ctx, owner, repo, branchName, sha, log) {
   }
 }
 
+async function createPullRequest (ctx, branchName, log) {
+  try {
+    const res = await ctx.github.pullRequests.create(ctx.repo({
+      title: getIssueTitle(),
+      head: branchName,
+      base: getDefaultBranch(ctx),
+      body: `Closes #${getIssueNumber()}`,
+      maintainer_can_modify: true,
+      draft: true
+    }))
+
+    log(`Pull Request created: ${branchName}`)
+
+    if (isProduction()) {
+      pushMetric(log)
+    }
+
+    return res
+  } catch (e) {
+    log.error(`Could not create Pull Request (${e.message})`)
+  }
+}
+
 function pushMetric (log) {
   const namespace = process.env.CLOUDWATCH_NAMESPACE ? process.env.CLOUDWATCH_NAMESPACE : 'create_issue_branch_staging'
   const metric = {
@@ -151,6 +178,12 @@ async function getBranchNameFromIssue (ctx, config) {
     result = `issue-${number}-${title}`
   }
   return makeGitSafe(getIssueBranchPrefix(ctx, config) + result)
+}
+
+function getCreatePR (ctx, config) {
+  const branchConfig = getIssueBranchConfig(ctx, config)
+
+  return branchConfig && !!branchConfig.pr
 }
 
 function getIssueBranchPrefix (ctx, config) {
