@@ -25,7 +25,7 @@ module.exports = app => {
         const sha = await getSourceBranchHeadSha(ctx, config, app.log)
         await createBranch(ctx, owner, repo, branchName, sha, app.log)
 
-        if (getCreatePR === true) {
+        if (getCreatePR(ctx, config) === true) {
           await createPullRequest(ctx, branchName, app.log)
         }
       }
